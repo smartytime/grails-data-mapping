@@ -503,7 +503,8 @@ public abstract class Query implements Cloneable{
     }
 
     /**
-     * Executes the query returning zero or many results as a list.
+     * Executes the query returning zero or many results as a list.  Any class that overrides this method must fire
+     * the {@link PreQueryEvent} and {@link PostQueryEvent} events properly.
      *
      * @return The results
      */

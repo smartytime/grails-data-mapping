@@ -39,6 +39,8 @@ import org.grails.datastore.mapping.query.AssociationQuery;
 import org.grails.datastore.mapping.query.Query;
 import org.grails.datastore.mapping.query.api.QueryableCriteria;
 import org.grails.datastore.mapping.query.criteria.FunctionCallingCriterion;
+import org.grails.datastore.mapping.query.event.PostQueryEvent;
+import org.grails.datastore.mapping.query.event.PreQueryEvent;
 import org.hibernate.*;
 import org.hibernate.criterion.CriteriaSpecification;
 import org.hibernate.criterion.DetachedCriteria;
@@ -52,6 +54,7 @@ import org.hibernate.internal.CriteriaImpl;
 import org.hibernate.persister.entity.PropertyMapping;
 import org.hibernate.type.BasicType;
 import org.hibernate.type.TypeResolver;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
@@ -490,6 +493,7 @@ public class HibernateQuery extends Query {
     @Override
     public List list() {
         int projectionLength = 0;
+
         if (hibernateProjectionList != null) {
             org.hibernate.criterion.ProjectionList projectionList = hibernateProjectionList.getHibernateProjectionList();
             projectionLength = projectionList.getLength();
@@ -501,7 +505,22 @@ public class HibernateQuery extends Query {
         }
 
         applyFetchStrategies();
-        return criteria.list();
+
+        ApplicationEventPublisher publisher = session.getDatastore().getApplicationEventPublisher();
+        if(publisher != null) {
+            publisher.publishEvent(new PreQueryEvent(this));
+        }
+
+        List queryResults = criteria.list();
+
+        if(publisher != null) {
+            PostQueryEvent postQueryEvent = new PostQueryEvent(this, queryResults);
+            publisher.publishEvent(postQueryEvent);
+            queryResults = postQueryEvent.getResults();
+        }
+
+        return queryResults;
+
     }
 
     private void applyFetchStrategies() {
