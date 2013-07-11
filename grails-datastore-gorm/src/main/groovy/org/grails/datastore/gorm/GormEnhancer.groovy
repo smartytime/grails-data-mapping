@@ -230,14 +230,18 @@ class GormEnhancer {
     }
 
     protected List<FinderMethod> getAllDynamicFinders() {
+        return getAllDynamicFinders(datastore)
+    }
+
+    public static List<FinderMethod> getAllDynamicFinders(Datastore datastore) {
         [new FindOrCreateByFinder(datastore),
-         new FindOrSaveByFinder(datastore),
-         new FindByFinder(datastore),
-         new FindAllByFinder(datastore),
-         new FindAllByBooleanFinder(datastore),
-         new FindByBooleanFinder(datastore),
-         new CountByFinder(datastore),
-         new ListOrderByFinder(datastore)]
+                new FindOrSaveByFinder(datastore),
+                new FindByFinder(datastore),
+                new FindAllByFinder(datastore),
+                new FindAllByBooleanFinder(datastore),
+                new FindByBooleanFinder(datastore),
+                new CountByFinder(datastore),
+                new ListOrderByFinder(datastore)]
     }
 
     private List initialiseFinders() {

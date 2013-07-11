@@ -20,6 +20,7 @@ import org.codehaus.groovy.grails.orm.hibernate.support.ClosureEventTriggeringIn
 import org.codehaus.groovy.grails.plugins.DomainClassGrailsPlugin
 import org.codehaus.groovy.runtime.InvokerHelper
 import org.codehaus.groovy.runtime.StringGroovyMethods
+import org.grails.datastore.gorm.GormEnhancer
 import org.grails.datastore.mapping.core.Datastore
 import org.grails.datastore.mapping.model.MappingContext
 import org.grails.datastore.mapping.model.PersistentEntity
@@ -261,7 +262,7 @@ class HibernateUtils {
 
         def classLoader = application.classLoader
 
-        def finders = HibernateGormEnhancer.createPersistentMethods(application, classLoader, datastore)
+        def finders = GormEnhancer.getAllDynamicFinders(datastore)
         def staticApi = new HibernateGormStaticApi(dc.clazz, datastore, finders, classLoader, transactionManager)
         ((GroovyObject)((GroovyObject)dc.metaClass).getProperty('static')).setProperty(getter, { -> staticApi })
 
