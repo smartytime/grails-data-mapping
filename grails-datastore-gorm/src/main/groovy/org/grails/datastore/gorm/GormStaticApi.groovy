@@ -24,6 +24,7 @@ import org.codehaus.groovy.runtime.InvokerHelper
 import org.grails.datastore.gorm.async.GormAsyncStaticApi
 import org.grails.datastore.gorm.finders.DynamicFinder
 import org.grails.datastore.gorm.finders.FinderMethod
+import org.grails.datastore.gorm.utils.GormConversionUtils
 import org.grails.datastore.mapping.core.AbstractDatastore
 import org.grails.datastore.mapping.core.Datastore
 import org.grails.datastore.mapping.core.DatastoreUtils
@@ -37,6 +38,7 @@ import org.grails.datastore.mapping.query.Query
 import org.grails.datastore.mapping.query.api.Criteria
 import org.springframework.beans.PropertyAccessorFactory
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory
+import org.springframework.core.convert.ConversionService
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.TransactionDefinition
 import org.springframework.transaction.support.DefaultTransactionDefinition
@@ -49,7 +51,7 @@ import org.springframework.validation.Errors
  * Static methods of the GORM API.
  *
  * @author Graeme Rocher
- * @param <D> the entity/domain class
+ * @param < D >   the entity/domain class
  */
 @CompileStatic
 class GormStaticApi<D> extends AbstractGormApi<D> {
@@ -57,6 +59,11 @@ class GormStaticApi<D> extends AbstractGormApi<D> {
     List<FinderMethod> gormDynamicFinders
 
     PlatformTransactionManager transactionManager
+
+    ConversionService conversionService
+
+    Class identityType
+
 
     GormStaticApi(Class<D> persistentClass, Datastore datastore, List<FinderMethod> finders) {
         this(persistentClass, datastore, finders, null)
@@ -66,6 +73,7 @@ class GormStaticApi<D> extends AbstractGormApi<D> {
         super(persistentClass, datastore)
         gormDynamicFinders = finders
         this.transactionManager = transactionManager
+        identityType = persistentEntity?.identity?.type
     }
 
     /**
@@ -125,7 +133,7 @@ class GormStaticApi<D> extends AbstractGormApi<D> {
      * @return The DetachedCriteria instance
      */
     DetachedCriteria<D> whereAny(Closure callable) {
-        (DetachedCriteria<D>)new DetachedCriteria<D>(persistentClass).or(callable)
+        (DetachedCriteria<D>) new DetachedCriteria<D>(persistentClass).or(callable)
     }
 
     /**
@@ -220,9 +228,19 @@ class GormStaticApi<D> extends AbstractGormApi<D> {
      * Retrieves and object from the datastore. eg. Book.get(1)
      */
     D get(Serializable id) {
-        (D)execute({ Session session ->
-           session.retrieve((Class)persistentClass, id)
-        } as SessionCallback)
+        if (id != null) {
+
+            id = convertIdentifier(id)
+            (D) execute({ Session session ->
+                session.retrieve((Class) persistentClass, id)
+            } as SessionCallback)
+        }
+
+    }
+
+
+    protected Serializable convertIdentifier(Serializable id) {
+        (Serializable) GormConversionUtils.convertValueToType(id, identityType, conversionService)
     }
 
     /**
@@ -232,18 +250,25 @@ class GormStaticApi<D> extends AbstractGormApi<D> {
      * just delegates to {@link #get(Serializable)}
      */
     D read(Serializable id) {
-        (D)execute ({ Session session ->
-           session.retrieve((Class)persistentClass, id)
-        } as SessionCallback)
+        if (id != null) {
+            id = convertIdentifier(id)
+            (D) execute({ Session session ->
+                session.retrieve((Class) persistentClass, id)
+            } as SessionCallback)
+        }
     }
 
     /**
      * Retrieves and object from the datastore as a proxy. eg. Book.load(1)
      */
     D load(Serializable id) {
-        (D)execute ({ Session session ->
-           session.proxy((Class)persistentClass, id)
-        } as SessionCallback)
+        if (id != null) {
+            id = convertIdentifier(id)
+            (D) execute({ Session session ->
+                session.proxy((Class) persistentClass, id)
+            } as SessionCallback)
+        }
+
     }
 
     /**
@@ -612,12 +637,12 @@ class GormStaticApi<D> extends AbstractGormApi<D> {
         } as SessionCallback)
     }
 
-   /**
-    * Finds a single result matching all of the given conditions. Eg. Book.findWhere(author:"Stephen King", title:"The Stand").  If
-    * a matching persistent entity is not found a new entity is created and returned.
-    *
-    * @param queryMap The map of conditions
-    * @return A single result
+    /**
+     * Finds a single result matching all of the given conditions. Eg. Book.findWhere(author:"Stephen King", title:"The Stand").  If
+     * a matching persistent entity is not found a new entity is created and returned.
+     *
+     * @param queryMap The map of conditions
+     * @return A single result
      */
     D findOrCreateWhere(Map queryMap) {
         internalFindOrCreate(queryMap, false)

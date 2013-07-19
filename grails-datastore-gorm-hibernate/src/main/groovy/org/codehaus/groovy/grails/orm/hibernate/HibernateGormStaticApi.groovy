@@ -5,9 +5,9 @@ import groovy.transform.CompileStatic
 import org.codehaus.groovy.grails.commons.DomainClassArtefactHandler
 import org.codehaus.groovy.grails.commons.GrailsApplication
 import org.codehaus.groovy.grails.commons.GrailsDomainClass
+import org.codehaus.groovy.grails.domain.GrailsDomainClassMappingContext
 import org.codehaus.groovy.grails.orm.hibernate.metaclass.*
 import org.grails.datastore.gorm.GormStaticApi
-import org.grails.datastore.gorm.config.GrailsDomainClassMappingContext
 import org.grails.datastore.gorm.finders.FinderMethod
 import org.grails.datastore.mapping.query.api.Criteria as GrailsCriteria
 import org.hibernate.SessionFactory
@@ -46,6 +46,7 @@ class HibernateGormStaticApi<D> extends GormStaticApi<D> {
         this.classLoader = classLoader
         sessionFactory = datastore.getSessionFactory()
         conversionService = datastore.mappingContext.conversionService
+
 
         identityType = persistentEntity.identity?.type
 

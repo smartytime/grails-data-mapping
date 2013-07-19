@@ -495,7 +495,23 @@ public class HibernateQuery extends Query {
     @Override
     public List list() {
         int projectionLength = 0;
-        if (hibernateProjectionList != null) {
+        /*
+            Not 100% about this logic - I had to add these checks in order to get it to work.  In one case, an empty (not null)
+            hibernateProjectionList would be passed in, which would cause the query from clause to be truncated.  So I added the
+            projectionListNotEmpty clause, which fixed that case.
+
+            But then there was another case where the hibernateProjectionList was empty, but contained property projections, which
+            apparently are contained in hibernateProjectionList.projectionList. So, I added the second check.  This is due to my ignorance
+            about what these classes do...
+
+            If the logic is okay, feel free to delete my comment.
+
+            Eric Martineau
+            ericm@infusionsoft.com
+        * */
+        boolean hasProjectionListSize = hibernateProjectionList != null && hibernateProjectionList.projectionList != null && hibernateProjectionList.projectionList.getLength() > 0;
+        boolean projectionListNotEmpty = hibernateProjectionList != null && !hibernateProjectionList.isEmpty();
+        if (hasProjectionListSize || projectionListNotEmpty) {
             org.hibernate.criterion.ProjectionList projectionList = hibernateProjectionList.getHibernateProjectionList();
             projectionLength = projectionList.getLength();
             criteria.setProjection(projectionList);
