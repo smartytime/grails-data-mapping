@@ -140,7 +140,7 @@ class HibernateGormInstanceApi<D> extends GormInstanceApi<D> {
     }
 
     @Override
-    boolean instanceOf(D instance, Class cls) {
+    boolean instanceOf(instance, Class cls) {
         if (instance instanceof HibernateProxy) {
             return GrailsHibernateUtil.unwrapProxy(instance) in cls
         }

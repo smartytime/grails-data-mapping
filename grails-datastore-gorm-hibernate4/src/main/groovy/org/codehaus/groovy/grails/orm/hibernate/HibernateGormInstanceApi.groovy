@@ -149,118 +149,17 @@ class HibernateGormInstanceApi<D> extends GormInstanceApi<D> {
         }
 
         int fieldIndex = entry.persister.propertyNames.findIndexOf { fieldName == it }
-        return fieldIndex == -1 ? null : entry.loadedState[fieldIndex]
+        return fieldIndex == -1 ? null : entry.loadedState[fieldIndex] as D
     }
 
     @Override
-    Object lock(instance) {
-        hibernateTemplate.lock(instance, LockMode.PESSIMISTIC_WRITE)
-    }
-
-    @Override
-    Object refresh(instance) {
-        hibernateTemplate.refresh(instance)
-        return instance
-    }
-
-    @Override
-    Object save(instance) {
-        if (saveMethod) {
-            return saveMethod.invoke(instance, "save", EMPTY_ARRAY)
-        }
-        return super.save(instance)
-    }
-
-    Object save(instance, boolean validate) {
-        if (saveMethod) {
-            return saveMethod.invoke(instance, "save", [validate] as Object[])
-        }
-        return super.save(instance, validate)
-    }
-
-    @Override
-    D merge(D instance) {
-        if (mergeMethod) {
-            mergeMethod.invoke(instance, "merge", EMPTY_ARRAY)
-        }
-        else {
-            return super.merge(instance)
-        }
-    }
-
-    @Override
-    D merge(D instance, Map params) {
-        if (mergeMethod) {
-            mergeMethod.invoke(instance, "merge", [params] as Object[])
-        }
-        else {
-            return super.merge(instance, params)
-        }
-    }
-
-    @Override
-    D save(D instance, Map params) {
-        if (saveMethod) {
-            return saveMethod.invoke(instance, "save", [params] as Object[])
-        }
-        return super.save(instance, params)
-    }
-
-    @Override
-    D attach(D instance) {
-        hibernateTemplate.lock(instance, LockMode.NONE)
-        return instance
-    }
-
-    @Override
-    void discard(D instance) {
-        hibernateTemplate.evict instance
-    }
-
-    @Override
-    void delete(D instance) {
-        def obj = instance
-        try {
-            hibernateTemplate.execute new GrailsHibernateTemplate.HibernateCallback() {
-                def doInHibernate(Session session) {
-                   session.delete obj
-                   if (shouldFlush()) {
-                       session.flush()
-                   }
-                }
-            }
-        }
-        catch (DataAccessException e) {
-            handleDataAccessException(hibernateTemplate, e)
-        }
-    }
-
-    @Override
-    void delete(D instance, Map params) {
-        def obj = instance
-        hibernateTemplate.delete obj
-        if (shouldFlush(params)) {
-            try {
-                hibernateTemplate.flush(instance)
-            }
-            catch (DataAccessException e) {
-                handleDataAccessException(hibernateTemplate, e)
-            }
-        }
-    }
-
-    @Override
-    boolean instanceOf(D instance, Class cls) {
+    boolean instanceOf(instance, Class cls) {
         if (instance instanceof HibernateProxy) {
             return GrailsHibernateUtil.unwrapProxy(instance) in cls
         }
         return instance in cls
     }
 
-    @Override
-    boolean isAttached(D instance) {
-        hibernateTemplate.contains instance
-    }
 
     private EntityEntry findEntityEntry(D instance, SessionImplementor session, boolean forDirtyCheck = true) {
         def entry = session.persistenceContext.getEntry(instance)

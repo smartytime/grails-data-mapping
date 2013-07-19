@@ -52,6 +52,7 @@ class OptimisticLockingSpec extends GormDatastoreSpec {
                 assert reloaded
                 reloaded.name += ' in new session'
                 reloaded.save(flush: true)
+                assert reloaded.version == 1
             }
 
             o.name += ' in main session'

@@ -36,6 +36,8 @@ import org.codehaus.groovy.grails.orm.hibernate.support.ClosureEventTriggeringIn
 import org.codehaus.groovy.grails.plugins.DomainClassGrailsPlugin
 import org.codehaus.groovy.runtime.InvokerHelper
 import org.codehaus.groovy.runtime.StringGroovyMethods
+import org.grails.datastore.gorm.GormEnhancer
+import org.grails.datastore.gorm.utils.GormConversionUtils
 import org.grails.datastore.mapping.core.Datastore
 import org.grails.datastore.mapping.model.MappingContext
 import org.grails.datastore.mapping.model.PersistentEntity
@@ -275,7 +277,7 @@ class HibernateUtils {
 
         def classLoader = application.classLoader
 
-        def finders = HibernateGormEnhancer.createPersistentMethods(application, classLoader, datastore)
+        def finders = GormEnhancer.getAllDynamicFinders(datastore)
         def staticApi = new HibernateGormStaticApi(dc.clazz, datastore, finders, classLoader, transactionManager)
         ((GroovyObject)((GroovyObject)dc.metaClass).getProperty('static')).setProperty(getter, { -> staticApi })
 
@@ -320,43 +322,5 @@ class HibernateUtils {
      * @return the idValue parameter converted to the type that grailsDomainClass expects
      * its identifiers to be
      */
-    static Object convertValueToIdentifierType(GrailsDomainClass grailsDomainClass, Object idValue, ConversionService conversionService) {
-        convertValueToType(idValue, grailsDomainClass.identifier.type, conversionService)
-    }
 
-    static Object convertValueToType(Object passedValue, Class targetType, ConversionService conversionService) {
-        // workaround for GROOVY-6127, do not assign directly in parameters before it's fixed
-        Object value = passedValue
-        if(targetType != null && value != null && !(value in targetType)) {
-            if (value instanceof CharSequence) {
-                value = value.toString()
-                if(value in targetType) {
-                    return value
-                }
-            }
-            try {
-                if (value instanceof Number && (targetType==Long || targetType==Integer)) {
-                    if(targetType == Long) {
-                        value = ((Number)value).toLong()
-                    } else {
-                        value = ((Number)value).toInteger()
-                    }
-                } else if (value instanceof String && targetType in Number) {
-                    String strValue = value.trim()
-                    if(targetType == Long) {
-                        value = Long.parseLong(strValue)
-                    } else if (targetType == Integer) {
-                        value = Integer.parseInt(strValue)
-                    } else {
-                        value = StringGroovyMethods.asType(strValue, targetType)
-                    }
-                } else {
-                    value = conversionService.convert(value, targetType)
-                }
-            } catch (e) {
-                // ignore
-            }
-        }
-        return value
-    }
 }

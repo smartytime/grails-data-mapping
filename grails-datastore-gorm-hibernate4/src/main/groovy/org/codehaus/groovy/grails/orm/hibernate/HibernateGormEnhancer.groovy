@@ -54,26 +54,12 @@ class HibernateGormEnhancer extends GormEnhancer {
         super(datastore, transactionManager)
         this.grailsApplication = grailsApplication
         classLoader = grailsApplication.classLoader
-        finders = createPersistentMethods(grailsApplication, classLoader, datastore)
+        finders = allDynamicFinders
     }
 
     @Override
     protected void registerConstraints(Datastore datastore) {
         // no-op
-    }
-
-    static List createPersistentMethods(GrailsApplication grailsApplication, ClassLoader classLoader, Datastore datastore) {
-        HibernateDatastore hibernateDatastore = (HibernateDatastore)datastore
-        def sessionFactory = hibernateDatastore.sessionFactory
-        Collections.unmodifiableList([
-            new FindAllByPersistentMethod(hibernateDatastore, grailsApplication, sessionFactory, classLoader),
-            new FindAllByBooleanPropertyPersistentMethod(hibernateDatastore, grailsApplication, sessionFactory, classLoader),
-            new FindOrCreateByPersistentMethod(hibernateDatastore, grailsApplication, sessionFactory, classLoader),
-            new FindOrSaveByPersistentMethod(hibernateDatastore, grailsApplication, sessionFactory, classLoader),
-            new FindByPersistentMethod(hibernateDatastore, grailsApplication, sessionFactory, classLoader),
-            new FindByBooleanPropertyPersistentMethod(hibernateDatastore, grailsApplication, sessionFactory, classLoader),
-            new CountByPersistentMethod(hibernateDatastore, grailsApplication, sessionFactory, classLoader),
-            new ListOrderByPersistentMethod(hibernateDatastore, grailsApplication, sessionFactory, classLoader) ])
     }
 
     protected <D> GormValidationApi<D> getValidationApi(Class<D> cls) {

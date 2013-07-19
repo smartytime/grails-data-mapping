@@ -16,6 +16,7 @@
 package org.codehaus.groovy.grails.orm.hibernate.cfg
 
 import grails.util.GrailsNameUtils
+import org.grails.datastore.gorm.utils.GormConversionUtils
 
 import java.lang.reflect.Modifier
 
@@ -161,7 +162,7 @@ class NamedCriteriaProxy<T> {
     }
 
     T get(id) {
-        id = HibernateUtils.convertValueToIdentifierType(domainClass, id, conversionService)
+        id = GormConversionUtils.convertValueToType(id, domainClass.identifier.type, conversionService)
         def getClosure = {
             queryBuilder = delegate
             invokeCriteriaClosure()

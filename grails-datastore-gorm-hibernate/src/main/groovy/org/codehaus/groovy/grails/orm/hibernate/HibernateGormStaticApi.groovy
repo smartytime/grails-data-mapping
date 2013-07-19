@@ -210,5 +210,105 @@ class HibernateGormStaticApi<D> extends GormStaticApi<D> {
         findMethod.invoke(persistentClass, "find", [query, params] as Object[]) as D
     }
 
+    @Override
+    List<D> executeQuery(String query) {
+        (List<D>)executeQueryMethod.invoke(persistentClass, "executeQuery", [query] as Object[])
+    }
+
+    @Override
+    List<D> executeQuery(String query, Map args) {
+        (List<D>)executeQueryMethod.invoke(persistentClass, "executeQuery", [query, args] as Object[])
+    }
+
+    @Override
+    List<D> executeQuery(String query, Map params, Map args) {
+        (List<D>)executeQueryMethod.invoke(persistentClass, "executeQuery", [query, params, args] as Object[])
+    }
+
+    @Override
+    List<D> executeQuery(String query, Collection params) {
+        (List<D>)executeQueryMethod.invoke(persistentClass, "executeQuery", [query, params] as Object[])
+    }
+
+    @Override
+    List<D> executeQuery(String query, Collection params, Map args) {
+        (List<D>)executeQueryMethod.invoke(persistentClass, "executeQuery", [query, params, args] as Object[])
+    }
+
+    @Override
+    Integer executeUpdate(String query) {
+        (Integer)executeUpdateMethod.invoke(persistentClass, "executeUpdate", [query] as Object[])
+    }
+
+    @Override
+    Integer executeUpdate(String query, Map args) {
+        (Integer)executeUpdateMethod.invoke(persistentClass, "executeUpdate", [query, args] as Object[])
+    }
+
+    @Override
+    Integer executeUpdate(String query, Map params, Map args) {
+        (Integer)executeUpdateMethod.invoke(persistentClass, "executeUpdate", [query, params, args] as Object[])
+    }
+
+    @Override
+    Integer executeUpdate(String query, Collection params) {
+        (Integer)executeUpdateMethod.invoke(persistentClass, "executeUpdate", [query, params] as Object[])
+    }
+
+    @Override
+    Integer executeUpdate(String query, Collection params, Map args) {
+        (Integer)executeUpdateMethod.invoke(persistentClass, "executeUpdate", [query, params, args] as Object[])
+    }
+
+    @Override
+    D find(String query) {
+        findMethod.invoke(persistentClass, "find", [query] as Object[]) as D
+    }
+
+    @Override
+    D find(String query, Map args) {
+        findMethod.invoke(persistentClass, "find", [query, args] as Object[]) as D
+    }
+
+    @Override
+    D find(String query, Map params, Map args) {
+        findMethod.invoke(persistentClass, "find", [query, params, args] as Object[]) as D
+    }
+
+    @Override
+    Object find(String query, Collection params) {
+        findMethod.invoke(persistentClass, "find", [query, params] as Object[])
+    }
+
+    @Override
+    D find(String query, Collection params, Map args) {
+        findMethod.invoke(persistentClass, "find", [query, params, args] as Object[]) as D
+    }
+
+    @Override
+    List<D> findAll(String query) {
+        (List<D>)findAllMethod.invoke(persistentClass, "findAll", [query] as Object[])
+    }
+
+    @Override
+    List<D> findAll(String query, Map args) {
+        (List<D>)findAllMethod.invoke(persistentClass, "findAll", [query, args] as Object[])
+    }
+
+    @Override
+    List<D> findAll(String query, Map params, Map args) {
+        (List<D>)findAllMethod.invoke(persistentClass, "findAll", [query, params, args] as Object[])
+    }
+
+    @Override
+    List<D> findAll(String query, Collection params) {
+        (List<D>)findAllMethod.invoke(persistentClass, "findAll", [query, params] as Object[])
+    }
+
+    @Override
+    List<D> findAll(String query, Collection params, Map args) {
+        (List<D>)findAllMethod.invoke(persistentClass, "findAll", [query, params, args] as Object[])
+    }
+
 
 }
