@@ -26,6 +26,7 @@ import org.bson.types.Binary;
 import org.bson.types.ObjectId;
 import org.grails.datastore.mapping.core.AbstractDatastore;
 import org.grails.datastore.mapping.core.Session;
+import org.grails.datastore.mapping.core.StatelessDatastore;
 import org.grails.datastore.mapping.document.config.DocumentMappingContext;
 import org.grails.datastore.mapping.model.ClassMapping;
 import org.grails.datastore.mapping.model.MappingContext;
@@ -62,17 +63,20 @@ import com.mongodb.WriteConcern;
  * @author Graeme Rocher
  * @since 1.0
  */
-public class MongoDatastore extends AbstractDatastore implements InitializingBean, MappingContext.Listener, DisposableBean {
+public class MongoDatastore extends AbstractDatastore implements InitializingBean, MappingContext.Listener, DisposableBean, StatelessDatastore {
 
     public static final String PASSWORD = "password";
     public static final String USERNAME = "username";
     public static final String MONGO_PORT = "port";
     public static final String MONGO_HOST = "host";
+    public static final String MONGO_STATELESS = "stateless";
 
-    private Mongo mongo;
-    private MongoOptions mongoOptions = new MongoOptions();
-    private Map<PersistentEntity, MongoTemplate> mongoTemplates = new ConcurrentHashMap<PersistentEntity, MongoTemplate>();
-    private Map<PersistentEntity, String> mongoCollections = new ConcurrentHashMap<PersistentEntity, String>();
+    protected Mongo mongo;
+    protected MongoOptions mongoOptions = new MongoOptions();
+    protected Map<PersistentEntity, MongoTemplate> mongoTemplates = new ConcurrentHashMap<PersistentEntity, MongoTemplate>();
+    protected Map<PersistentEntity, String> mongoCollections = new ConcurrentHashMap<PersistentEntity, String>();
+    protected boolean stateless = false;
+    protected UserCredentials userCrentials;
 
     /**
      * Constructs a MongoDatastore using the default database name of "test" and defaults for the host and port.
@@ -178,9 +182,23 @@ public class MongoDatastore extends AbstractDatastore implements InitializingBea
         return mongoCollections.get(entity);
     }
 
+    public UserCredentials getUserCrentials() {
+        return userCrentials;
+    }
+
     @Override
     protected Session createSession(Map<String, String> connDetails) {
-        return new MongoSession(this, getMappingContext(), getApplicationEventPublisher());
+        if(stateless) {
+            return createStatelessSession(connectionDetails);
+        }
+        else {
+            return new MongoSession(this, getMappingContext(), getApplicationEventPublisher(), false);
+        }
+    }
+
+    @Override
+    protected Session createStatelessSession(Map<String, String> connectionDetails) {
+        return new MongoSession(this, getMappingContext(), getApplicationEventPublisher(), true);
     }
 
     public void afterPropertiesSet() throws Exception {
@@ -189,6 +207,7 @@ public class MongoDatastore extends AbstractDatastore implements InitializingBea
             MongoFactoryBean dbFactory = new MongoFactoryBean();
             dbFactory.setHost(read(String.class, MONGO_HOST, connectionDetails, defaults.getHost()));
             dbFactory.setPort(read(Integer.class, MONGO_PORT, connectionDetails, defaults.getPort()));
+            this.stateless = read(Boolean.class, MONGO_STATELESS, connectionDetails, false);
             if (mongoOptions != null) {
                 dbFactory.setMongoOptions(mongoOptions);
             }
@@ -227,8 +246,8 @@ public class MongoDatastore extends AbstractDatastore implements InitializingBea
         String password = read(String.class, PASSWORD, connectionDetails, null);
 
         if (username != null && password != null) {
-            UserCredentials uc = new UserCredentials(username, password);
-            dbf = new SimpleMongoDbFactory(mongoInstance, databaseName, uc);
+            this.userCrentials = new UserCredentials(username, password);
+            dbf = new SimpleMongoDbFactory(mongoInstance, databaseName, userCrentials);
         }
         else {
             dbf = new SimpleMongoDbFactory(mongoInstance, databaseName);
@@ -340,4 +359,6 @@ public class MongoDatastore extends AbstractDatastore implements InitializingBea
     public boolean isSchemaless() {
         return true;
     }
+
+
 }

@@ -14,6 +14,10 @@
  */
 package org.grails.datastore.gorm
 
+import grails.util.GrailsNameUtils
+import org.grails.datastore.mapping.engine.EntityPersister
+import org.grails.datastore.mapping.model.types.ToOne
+
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
@@ -41,6 +45,7 @@ import org.grails.datastore.mapping.model.types.ManyToMany
 import org.grails.datastore.mapping.model.types.OneToMany
 import org.grails.datastore.mapping.reflect.ClassPropertyFetcher
 import org.springframework.transaction.PlatformTransactionManager
+import org.grails.datastore.mapping.proxy.ProxyFactory
 
 /**
  * Enhances a class with GORM behavior
@@ -61,12 +66,18 @@ class GormEnhancer {
     GormEnhancer(Datastore datastore, PlatformTransactionManager transactionManager) {
         this.datastore = datastore
         this.transactionManager = transactionManager
-        initialiseFinders()
         registerConstraints(datastore)
     }
 
     protected void registerConstraints(Datastore datastore) {
         ConstrainedProperty.registerNewConstraint("unique", new UniqueConstraintFactory(datastore))
+    }
+
+    List<FinderMethod> getFinders() {
+        if (finders == null) {
+            finders = Collections.unmodifiableList(createDynamicFinders())
+        }
+        finders
     }
 
     /**
@@ -131,10 +142,14 @@ class GormEnhancer {
             }
         }
 
+        final proxyFactory = datastore.mappingContext.proxyFactory
         for (p in e.associations) {
             def prop = p
             def isBasic = prop instanceof Basic
-            if ((prop instanceof OneToMany) || (prop instanceof ManyToMany) || isBasic || (prop instanceof EmbeddedCollection)) {
+            if(prop instanceof ToOne) {
+                registerAssociationIdentifierGetter(proxyFactory, mc, prop)
+            }
+            else if ((prop instanceof OneToMany) || (prop instanceof ManyToMany) || isBasic || (prop instanceof EmbeddedCollection)) {
                 def associatedEntity = prop.associatedEntity
                 def javaClass = associatedEntity?.javaClass
                 if(javaClass || isBasic) {
@@ -211,12 +226,28 @@ class GormEnhancer {
         }
     }
 
+    protected void registerAssociationIdentifierGetter(ProxyFactory proxyFactory, MetaClass metaClass, ToOne association) {
+        final propName = association.name
+        final getterName = GrailsNameUtils.getGetterName(propName)
+        metaClass."${getterName}Id" = {->
+            final associationInstance = delegate.getProperty(propName)
+            if (associationInstance != null) {
+                if (proxyFactory.isProxy(associationInstance)) {
+                    return proxyFactory.getIdentifier(associationInstance)
+                }
+                else {
+                    return datastore.currentSession.getObjectIdentifier(associationInstance)
+                }
+            }
+        }
+    }
+
     protected void registerNamedQueries(PersistentEntity entity, namedQueries) {
-        new NamedQueriesBuilder(entity, finders).evaluate namedQueries
+        new NamedQueriesBuilder(entity, getFinders()).evaluate namedQueries
     }
 
     protected <D> GormStaticApi<D> getStaticApi(Class<D> cls) {
-        new GormStaticApi<D>(cls, datastore, finders)
+        new GormStaticApi<D>(cls, datastore, getFinders())
     }
 
     protected <D> GormInstanceApi<D> getInstanceApi(Class<D> cls) {
@@ -229,22 +260,14 @@ class GormEnhancer {
         new GormValidationApi(cls, datastore)
     }
 
-    protected List<FinderMethod> getAllDynamicFinders() {
-        return getAllDynamicFinders(datastore)
-    }
-
-    public static List<FinderMethod> getAllDynamicFinders(Datastore datastore) {
+    protected List<FinderMethod> createDynamicFinders() {
         [new FindOrCreateByFinder(datastore),
-                new FindOrSaveByFinder(datastore),
-                new FindByFinder(datastore),
-                new FindAllByFinder(datastore),
-                new FindAllByBooleanFinder(datastore),
-                new FindByBooleanFinder(datastore),
-                new CountByFinder(datastore),
-                new ListOrderByFinder(datastore)]
-    }
-
-    private List initialiseFinders() {
-        this.finders = Collections.unmodifiableList(getAllDynamicFinders())
+         new FindOrSaveByFinder(datastore),
+         new FindByFinder(datastore),
+         new FindAllByFinder(datastore),
+         new FindAllByBooleanFinder(datastore),
+         new FindByBooleanFinder(datastore),
+         new CountByFinder(datastore),
+         new ListOrderByFinder(datastore)]
     }
 }

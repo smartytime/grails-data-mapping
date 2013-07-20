@@ -41,7 +41,7 @@ import org.springframework.validation.Errors;
  * @since 1.0
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
-public abstract class AbstractDatastore implements Datastore, DisposableBean {
+public abstract class AbstractDatastore implements Datastore, StatelessDatastore, DisposableBean {
 
     private ApplicationContext applicationContext;
 
@@ -99,12 +99,24 @@ public abstract class AbstractDatastore implements Datastore, DisposableBean {
 
     public final Session connect(Map<String, String> connDetails) {
         Session session = createSession(connDetails);
+        publishSessionCreationEvent(session);
+        return session;
+    }
+
+    private void publishSessionCreationEvent(Session session) {
         ApplicationEventPublisher applicationEventPublisher = getApplicationEventPublisher();
         if(applicationEventPublisher != null) {
             applicationEventPublisher.publishEvent(new SessionCreationEvent(session));
         }
+    }
+
+    @Override
+    public Session connectStateless() {
+        Session session = createStatelessSession(connectionDetails);
+        publishSessionCreationEvent(session);
         return session;
     }
+
 
     /**
      * Creates the native session
@@ -113,6 +125,17 @@ public abstract class AbstractDatastore implements Datastore, DisposableBean {
      * @return The session object
      */
     protected abstract Session createSession(Map<String, String> connectionDetails);
+
+    /**
+     * Creates the native stateless session
+     *
+     * @param connectionDetails The session details
+     * @return The session object
+     */
+    protected Session createStatelessSession(Map<String, String> connectionDetails) {
+        return createSession(connectionDetails);
+    }
+
 
     public Session getCurrentSession() throws ConnectionNotFoundException {
         return DatastoreUtils.doGetSession(this, false);
@@ -171,19 +194,19 @@ public abstract class AbstractDatastore implements Datastore, DisposableBean {
     }
 
     public Errors getObjectErrors(final Object o) {
-        return getValidationErrorsMap().get(o);
+        return getValidationErrorsMap().get(System.identityHashCode(o));
     }
 
     public void setObjectErrors(Object object, Errors errors) {
-        getValidationErrorsMap().put(object, errors);
+        getValidationErrorsMap().put(System.identityHashCode(object), errors);
     }
 
     public void setSkipValidation(final Object o, final boolean skip) {
-        VALIDATE_MAP.get().put(o, skip);
+        VALIDATE_MAP.get().put(System.identityHashCode(o), skip);
     }
 
     public boolean skipValidation(final Object o) {
-        final Object skipValidation = VALIDATE_MAP.get().get(o);
+        final Object skipValidation = VALIDATE_MAP.get().get(System.identityHashCode(o));
         return skipValidation instanceof Boolean && (Boolean) skipValidation;
     }
 

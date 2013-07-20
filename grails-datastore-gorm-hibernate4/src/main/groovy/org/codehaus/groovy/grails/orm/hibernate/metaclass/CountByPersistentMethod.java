@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright 2004-2005 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,7 +49,7 @@ public class CountByPersistentMethod extends AbstractClausedStaticPersistentMeth
     private static final String OPERATOR_AND = "And";
 
     private static final Pattern METHOD_PATTERN = Pattern.compile("(countBy)(\\w+)");
-    private static final String[] OPERATORS = new String[]{ OPERATOR_AND, OPERATOR_OR };
+    private static final String[] OPERATORS = { OPERATOR_AND, OPERATOR_OR };
     private HibernateDatastore datastore;
 
     public CountByPersistentMethod(HibernateDatastore datastore, GrailsApplication application, SessionFactory sessionFactory, ClassLoader classLoader) {
@@ -68,14 +68,13 @@ public class CountByPersistentMethod extends AbstractClausedStaticPersistentMeth
                 crit.setProjection(Projections.rowCount());
                 String operator = OPERATOR_OR.equals(operatorInUse) ? OPERATOR_OR : OPERATOR_AND;
                 Map argsMap = (arguments.length > 1 && (arguments[1] instanceof Map)) ? (Map) arguments[1] : Collections.EMPTY_MAP;
-                GrailsHibernateUtil.populateArgumentsForCriteria(crit, argsMap, conversionService);
+                GrailsHibernateUtil.populateArgumentsForCriteria(application, clazz, crit,  argsMap, conversionService, false);
 
                 populateCriteriaWithExpressions(crit, operator, expressions);
                 return (Long) crit.uniqueResult();
             }
         });
     }
-
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     protected void populateCriteriaWithExpressions(Criteria crit, String operator, List expressions) {

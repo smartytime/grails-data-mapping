@@ -41,9 +41,9 @@ allprojects {
     configurations {
         all {
             resolutionStrategy {
-                def cacheHours = isCiBuild ? 1 : 24
-                cacheDynamicVersionsFor cacheHours, 'hours'
-                cacheChangingModulesFor cacheHours, 'hours'
+//                def cacheHours = isCiBuild ? 1 : 24
+//                cacheDynamicVersionsFor cacheHours, 'hours'
+//                cacheChangingModulesFor cacheHours, 'hours'
             }
         }
     }
@@ -56,8 +56,8 @@ task wrapper(type: Wrapper) {
 subprojects {
     ext {
 //        releaseType = "RELEASE"
-        releaseType = "BUILD-SNAPSHOT"
-//        releaseType = "M1"
+       releaseType = "BUILD-SNAPSHOT"
+        // releaseType = "M4"
         isCiBuild = project.hasProperty("isCiBuild")
         isBuildSnapshot = releaseType == "BUILD-SNAPSHOT"
     }
@@ -92,7 +92,11 @@ subprojects {
         }
     }
 
-    def isGormDatasource = project.name.startsWith("grails-datastore-gorm-") && !project.name.endsWith("tck") && !project.name.endsWith("plugin-support")
+    def isGormDatasource = project.name.startsWith("grails-datastore-gorm-") && 
+                                !project.name.endsWith("tck") && 
+                                !project.name.endsWith("plugin-support") &&
+                                project.name != 'grails-datastore-gorm-hibernate-core'&&
+                                project.name != 'grails-datastore-gorm-rest-client'
     def isDocumentationProject = project.name.startsWith("grails-documentation")
 
     dependencies {

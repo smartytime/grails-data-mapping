@@ -1,4 +1,4 @@
-/* Copyright (C) 2011 SpringSource
+/* Copyright (C) 2013 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,17 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.codehaus.groovy.ast.AnnotationNode;
-import org.codehaus.groovy.ast.ClassCodeVisitorSupport;
-import org.codehaus.groovy.ast.ClassHelper;
-import org.codehaus.groovy.ast.ClassNode;
-import org.codehaus.groovy.ast.FieldNode;
-import org.codehaus.groovy.ast.GenericsType;
-import org.codehaus.groovy.ast.MethodNode;
-import org.codehaus.groovy.ast.Parameter;
-import org.codehaus.groovy.ast.PropertyNode;
-import org.codehaus.groovy.ast.Variable;
-import org.codehaus.groovy.ast.VariableScope;
+import org.codehaus.groovy.ast.*;
 import org.codehaus.groovy.ast.expr.ArgumentListExpression;
 import org.codehaus.groovy.ast.expr.BinaryExpression;
 import org.codehaus.groovy.ast.expr.BitwiseNegationExpression;
@@ -78,6 +68,8 @@ import org.codehaus.groovy.grails.commons.GrailsDomainClassProperty;
 import org.codehaus.groovy.syntax.Token;
 import org.grails.datastore.mapping.query.Query;
 import org.grails.datastore.mapping.query.criteria.FunctionCallingCriterion;
+import org.grails.datastore.mapping.reflect.ClassPropertyFetcher;
+import org.grails.datastore.mapping.reflect.NameUtils;
 
 /**
  * ClassCodeVisitorSupport that transforms where methods into detached criteria queries
@@ -169,9 +161,7 @@ public class DetachedCriteriaTransformer extends ClassCodeVisitorSupport {
             this.currentClassNode = node;
             super.visitClass(node);
         } catch(Exception e) {
-            StringWriter stringWriter = new StringWriter();
-            e.printStackTrace(new PrintWriter(stringWriter));
-            sourceUnit.getErrorCollector().addError(new LocatedMessage("Fatal error occurred apply query transformations: " + e.getMessage(), Token.newString(node.getName(),node.getLineNumber(), node.getColumnNumber()), sourceUnit));
+            logTransformationError(node, e);
         } finally {
             currentClassNode = null;
             detachedCriteriaVariables.clear();
@@ -225,7 +215,7 @@ public class DetachedCriteriaTransformer extends ClassCodeVisitorSupport {
                     node.setInitialValueExpression(newClosureExpression);
                 }
             } catch (Exception e) {
-                sourceUnit.getErrorCollector().addError(new LocatedMessage("Fatal error occurred applying query transformations: " + e.getMessage(), Token.newString(node.getName(), node.getLineNumber(), node.getColumnNumber()), sourceUnit));
+                logTransformationError(node, e);
             }
         }
 
@@ -287,10 +277,19 @@ public class DetachedCriteriaTransformer extends ClassCodeVisitorSupport {
                     expression.setRightExpression(newClosureExpression);
                 }
             } catch (Exception e) {
-                sourceUnit.getErrorCollector().addError(new LocatedMessage("Fatal error occurred applying query transformations [ " + e.getMessage() + "] to source ["+sourceUnit.getName()+"]. Please report an issue.", Token.newString(initializationExpression.getText(), initializationExpression.getLineNumber(), initializationExpression.getColumnNumber()), sourceUnit));
+                logTransformationError(initializationExpression, e);
             }
         }
         super.visitDeclarationExpression(expression);
+    }
+
+    private void logTransformationError(ASTNode astNode, Exception e) {
+        StringBuilder message = new StringBuilder("Fatal error occurred applying query transformations [ " + e.getMessage() + "] to source [" + sourceUnit.getName() + "]. Please report an issue.");
+        StringWriter sw = new StringWriter();
+        e.printStackTrace(new PrintWriter(sw));
+        message.append(System.getProperty("line.separator"));
+        message.append(sw.toString());
+        sourceUnit.getErrorCollector().addError(new LocatedMessage(message.toString(), Token.newString(astNode.getText(), astNode.getLineNumber(), astNode.getColumnNumber()), sourceUnit));
     }
 
     private ClosureExpression handleDetachedCriteriaCast(Expression initializationExpression) {
@@ -354,8 +353,7 @@ public class DetachedCriteriaTransformer extends ClassCodeVisitorSupport {
                 }
             }
         } catch (Exception e) {
-            sourceUnit.getErrorCollector().addError(new LocatedMessage("Fatal error occurred applying query transformations: " + e.getMessage(),
-                    Token.newString(call.getMethodAsString(), call.getLineNumber(), call.getColumnNumber()), sourceUnit));
+            logTransformationError(call, e);
         }
         super.visitMethodCallExpression(call);
     }
@@ -449,21 +447,27 @@ public class DetachedCriteriaTransformer extends ClassCodeVisitorSupport {
 
     protected void transformClosureExpression(ClassNode classNode, ClosureExpression closureExpression) {
         if (transformedExpressions.contains(closureExpression)) return;
-        List<String> propertyNames = getPropertyNames(classNode);
-        Statement code = closureExpression.getCode();
-        BlockStatement newCode = new BlockStatement();
-        boolean addAll = false;
+        ClassNode previousClassNode = this.currentClassNode;
+        try {
+            this.currentClassNode = classNode;
+            List<String> propertyNames = getPropertyNames(classNode);
+            Statement code = closureExpression.getCode();
+            BlockStatement newCode = new BlockStatement();
+            boolean addAll = false;
 
-        if (code instanceof BlockStatement) {
-            BlockStatement bs = (BlockStatement) code;
+            if (code instanceof BlockStatement) {
+                BlockStatement bs = (BlockStatement) code;
 
-            addBlockStatementToNewQuery(bs, newCode, addAll, propertyNames, closureExpression.getVariableScope());
-            newCode.setVariableScope(bs.getVariableScope());
-        }
+                addBlockStatementToNewQuery(bs, newCode, addAll, propertyNames, closureExpression.getVariableScope());
+                newCode.setVariableScope(bs.getVariableScope());
+            }
 
-        if (!newCode.getStatements().isEmpty()) {
-            transformedExpressions.add(closureExpression);
-            closureExpression.setCode(newCode);
+            if (!newCode.getStatements().isEmpty()) {
+                transformedExpressions.add(closureExpression);
+                closureExpression.setCode(newCode);
+            }
+        } finally {
+            this.currentClassNode = previousClassNode;
         }
     }
 
@@ -487,9 +491,18 @@ public class DetachedCriteriaTransformer extends ClassCodeVisitorSupport {
     private void populatePropertiesForClassNode(ClassNode classNode, Map<String, ClassNode> cachedProperties) {
         List<MethodNode> methods = classNode.getMethods();
         for (MethodNode method : methods) {
-            if (!method.isAbstract() && !method.isStatic() && isGetter(method.getName(), method)) {
-                String propertyName = GrailsClassUtils.getPropertyForGetter(method.getName());
-                cachedProperties.put(propertyName, method.getReturnType());
+            String methodName = method.getName();
+            if (!method.isAbstract() && isGetter(methodName, method)) {
+                String propertyName = NameUtils.getPropertyNameForGetterOrSetter(methodName);
+                if (GrailsDomainClassProperty.HAS_MANY.equals(propertyName) || GrailsDomainClassProperty.BELONGS_TO.equals(propertyName) || GrailsDomainClassProperty.HAS_ONE.equals(propertyName)) {
+                    FieldNode field = classNode.getField(propertyName);
+                    if(field != null) {
+                        populatePropertiesForInitialExpression(cachedProperties, field.getInitialExpression());
+                    }
+                }
+                else if(!method.isStatic()) {
+                    cachedProperties.put(propertyName, method.getReturnType());
+                }
             }
         }
         List<PropertyNode> properties = classNode.getProperties();
@@ -498,20 +511,47 @@ public class DetachedCriteriaTransformer extends ClassCodeVisitorSupport {
             String propertyName = property.getName();
             if (GrailsDomainClassProperty.HAS_MANY.equals(propertyName) || GrailsDomainClassProperty.BELONGS_TO.equals(propertyName) || GrailsDomainClassProperty.HAS_ONE.equals(propertyName)) {
                 Expression initialExpression = property.getInitialExpression();
-                if (initialExpression instanceof MapExpression) {
-                    MapExpression me = (MapExpression) initialExpression;
-                    List<MapEntryExpression> mapEntryExpressions = me.getMapEntryExpressions();
-                    for (MapEntryExpression mapEntryExpression : mapEntryExpressions) {
-                        Expression keyExpression = mapEntryExpression.getKeyExpression();
-                        Expression valueExpression = mapEntryExpression.getValueExpression();
-                        if (valueExpression instanceof ClassExpression) {
-                            cachedProperties.put(keyExpression.getText(), valueExpression.getType());
-                        }
-                    }
-                }
+                populatePropertiesForInitialExpression(cachedProperties, initialExpression);
             }
             else {
                 cachedProperties.put(propertyName, property.getType());
+            }
+        }
+
+        if(classNode.isResolved()) {
+            ClassPropertyFetcher propertyFetcher = ClassPropertyFetcher.forClass(classNode.getTypeClass());
+            cachePropertiesForAssociationMetadata(cachedProperties, propertyFetcher, GrailsDomainClassProperty.HAS_MANY);
+            cachePropertiesForAssociationMetadata(cachedProperties, propertyFetcher, GrailsDomainClassProperty.BELONGS_TO);
+            cachePropertiesForAssociationMetadata(cachedProperties, propertyFetcher, GrailsDomainClassProperty.HAS_ONE);
+        }
+
+    }
+
+    private void cachePropertiesForAssociationMetadata(Map<String, ClassNode> cachedProperties, ClassPropertyFetcher propertyFetcher, String associationMetadataName) {
+        if(propertyFetcher.isReadableProperty(associationMetadataName)) {
+            Object propertyValue = propertyFetcher.getPropertyValue(associationMetadataName);
+            if(propertyValue instanceof Map) {
+                Map hasManyMap = (Map) propertyValue;
+                for (Object propertyName : hasManyMap.keySet()) {
+                    Object val = hasManyMap.get(propertyName);
+                    if(val instanceof Class) {
+                        cachedProperties.put(propertyName.toString(), ClassHelper.make((Class) val).getPlainNodeReference());
+                    }
+                }
+            }
+        }
+    }
+
+    private void populatePropertiesForInitialExpression(Map<String, ClassNode> cachedProperties, Expression initialExpression) {
+        if (initialExpression instanceof MapExpression) {
+            MapExpression me = (MapExpression) initialExpression;
+            List<MapEntryExpression> mapEntryExpressions = me.getMapEntryExpressions();
+            for (MapEntryExpression mapEntryExpression : mapEntryExpressions) {
+                Expression keyExpression = mapEntryExpression.getKeyExpression();
+                Expression valueExpression = mapEntryExpression.getValueExpression();
+                if (valueExpression instanceof ClassExpression) {
+                    cachedProperties.put(keyExpression.getText(), valueExpression.getType());
+                }
             }
         }
     }
@@ -669,9 +709,11 @@ public class DetachedCriteriaTransformer extends ClassCodeVisitorSupport {
                             associationPropertyNames = getPropertyNames(type);
                         }
                     }
+                    if(type != null) {
+                        currentClassNode = type;
+                        addBlockStatementToNewQuery((BlockStatement) associationCode, currentBody, associationPropertyNames.isEmpty(), associationPropertyNames,variableScope);
+                    }
 
-                    currentClassNode = type;
-                    addBlockStatementToNewQuery((BlockStatement) associationCode, currentBody, associationPropertyNames.isEmpty(), associationPropertyNames,variableScope);
                 } finally {
                     currentClassNode = existing;
                 }
@@ -781,9 +823,12 @@ public class DetachedCriteriaTransformer extends ClassCodeVisitorSupport {
                 }
             }
             else {
-                sourceUnit.getErrorCollector().addError(new LocatedMessage("Cannot query on property \""+propertyName+"\" - no such property on class "+currentClassNode.getName()+" exists.", Token.newString(propertyName,leftExpression.getLineNumber(), leftExpression.getColumnNumber()), sourceUnit));
+                if(sourceUnit != null) {
+                    sourceUnit.getErrorCollector().addError(new LocatedMessage("Cannot query on property \""+propertyName+"\" - no such property on class "+ currentClassNode.getName() +" exists.", Token.newString(propertyName,leftExpression.getLineNumber(), leftExpression.getColumnNumber()), sourceUnit));
+                }
             }
-        }   else  {
+        }
+        else  {
 
             if (leftExpression instanceof MethodCallExpression) {
                 MethodCallExpression mce = (MethodCallExpression) leftExpression;

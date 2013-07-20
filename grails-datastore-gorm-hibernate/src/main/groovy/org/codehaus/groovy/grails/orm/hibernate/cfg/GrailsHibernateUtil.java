@@ -27,8 +27,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.codehaus.groovy.grails.commons.DefaultGrailsDomainClass;
 import org.codehaus.groovy.grails.commons.DomainClassArtefactHandler;
 import org.codehaus.groovy.grails.commons.GrailsApplication;
@@ -61,6 +59,9 @@ import org.hibernate.property.Getter;
 import org.hibernate.property.Setter;
 import org.hibernate.proxy.HibernateProxy;
 import org.hibernate.type.CompositeType;
+import org.hibernate.util.StringHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.core.convert.ConversionService;
@@ -73,7 +74,7 @@ import org.springframework.orm.hibernate3.HibernateCallback;
  * @since 0.4
  */
 public class GrailsHibernateUtil {
-    private static final Log LOG = LogFactory.getLog(GrailsHibernateUtil.class);
+    private static final Logger LOG = LoggerFactory.getLogger(GrailsHibernateUtil.class);
 
     private static final String DYNAMIC_FILTER_ENABLER = "dynamicFilterEnabler";
 
@@ -91,11 +92,13 @@ public class GrailsHibernateUtil {
     public static final String ARGUMENT_IGNORE_CASE = "ignoreCase";
     public static final String ARGUMENT_CACHE = "cache";
     public static final String ARGUMENT_LOCK = "lock";
-    public static final String CONFIG_PROPERTY_CACHE_QUERIES="grails.hibernate.cache.queries";
-    public static final String CONFIG_PROPERTY_OSIV_READONLY="grails.hibernate.osiv.readonly";
-    public static final Class<?>[] EMPTY_CLASS_ARRAY=new Class<?>[0];
+    public static final String CONFIG_PROPERTY_CACHE_QUERIES = "grails.hibernate.cache.queries";
+    public static final String CONFIG_PROPERTY_OSIV_READONLY = "grails.hibernate.osiv.readonly";
+    public static final Class<?>[] EMPTY_CLASS_ARRAY = {};
 
     private static HibernateProxyHandler proxyHandler = new HibernateProxyHandler();
+
+    private static GrailsDomainBinder binder = new GrailsDomainBinder();
 
     @SuppressWarnings("rawtypes")
     public static void enableDynamicFilterEnablerIfPresent(SessionFactory sessionFactory, Session session) {
@@ -155,6 +158,10 @@ public class GrailsHibernateUtil {
         }
     }
 
+    public static void populateArgumentsForCriteria(GrailsApplication grailsApplication, Class<?> targetClass, Criteria c, Map argMap, ConversionService conversionService) {
+        populateArgumentsForCriteria(grailsApplication, targetClass, c, argMap, conversionService, true);
+    }
+
     /**
      * Populates criteria arguments for the given target class and arguments map
      *
@@ -164,7 +171,7 @@ public class GrailsHibernateUtil {
      * @param argMap The arguments map
      */
     @SuppressWarnings("rawtypes")
-    public static void populateArgumentsForCriteria(GrailsApplication grailsApplication, Class<?> targetClass, Criteria c, Map argMap, ConversionService conversionService) {
+    public static void populateArgumentsForCriteria(GrailsApplication grailsApplication, Class<?> targetClass, Criteria c, Map argMap, ConversionService conversionService, boolean useDefaultMapping) {
         Integer maxParam = null;
         Integer offsetParam = null;
         if (argMap.containsKey(ARGUMENT_MAX)) {
@@ -224,8 +231,8 @@ public class GrailsHibernateUtil {
             }
             addOrderPossiblyNested(grailsApplication,c, targetClass, sort, order, ignoreCase);
         }
-        else {
-            Mapping m = GrailsDomainBinder.getMapping(targetClass);
+        else if(useDefaultMapping) {
+            Mapping m = binder.getMapping(targetClass);
             if (m != null && !StringUtils.isBlank(m.getSort())) {
                 addOrderPossiblyNested(grailsApplication, c, targetClass, m.getSort(), m.getOrder(), true);
             }
@@ -317,7 +324,7 @@ public class GrailsHibernateUtil {
      * @param criteria The criteria
      */
     public static void cacheCriteriaByMapping(Class<?> targetClass, Criteria criteria) {
-        Mapping m = GrailsDomainBinder.getMapping(targetClass);
+        Mapping m = binder.getMapping(targetClass);
         if (m != null && m.getCache() != null && m.getCache().getEnabled()) {
             criteria.setCacheable(true);
         }
@@ -548,7 +555,7 @@ public class GrailsHibernateUtil {
     public static List<String> getDatasourceNames(GrailsDomainClass domainClass) {
         // Mappings won't have been built yet when this is called from
         // HibernatePluginSupport.doWithSpring  so do a temporary evaluation but don't cache it
-        Mapping mapping = isMappedWithHibernate(domainClass) ? GrailsDomainBinder.evaluateMapping(domainClass, null, false) : null;
+        Mapping mapping = isMappedWithHibernate(domainClass) ? binder .evaluateMapping(domainClass, null, false) : null;
         if (mapping == null) {
             mapping = new Mapping();
         }
@@ -562,24 +569,46 @@ public class GrailsHibernateUtil {
     public static void autoAssociateBidirectionalOneToOnes(DefaultGrailsDomainClass domainClass, Object target) {
         List<GrailsDomainClassProperty> associations = domainClass.getAssociations();
         for (GrailsDomainClassProperty association : associations) {
-            if (association.isOneToOne() && association.isBidirectional() && association.isOwningSide()) {
-                if (isInitialized(target, association.getName())) {
-                    GrailsDomainClassProperty otherSide = association.getOtherSide();
-                    if (otherSide != null) {
-                        BeanWrapper bean = new BeanWrapperImpl(target);
-                        Object inverseObject = bean.getPropertyValue(association.getName());
-                        if (inverseObject != null) {
-                            if (isInitialized(inverseObject,otherSide.getName())) {
-                                BeanWrapper inverseBean = new BeanWrapperImpl(inverseObject);
-                                Object propertyValue = inverseBean.getPropertyValue(otherSide.getName());
-                                if (propertyValue == null) {
-                                    inverseBean.setPropertyValue(otherSide.getName(), target);
-                                }
-                            }
-                        }
-                    }
-                }
+            if (!association.isOneToOne() || !association.isBidirectional() || !association.isOwningSide()) {
+                continue;
+            }
+
+            if (!isInitialized(target, association.getName())) {
+                continue;
+            }
+
+            GrailsDomainClassProperty otherSide = association.getOtherSide();
+            if (otherSide == null) {
+                continue;
+            }
+
+            BeanWrapper bean = new BeanWrapperImpl(target);
+            Object inverseObject = bean.getPropertyValue(association.getName());
+            if (inverseObject == null) {
+                continue;
+            }
+
+            if (!isInitialized(inverseObject, otherSide.getName())) {
+                continue;
+            }
+
+            BeanWrapper inverseBean = new BeanWrapperImpl(inverseObject);
+            Object propertyValue = inverseBean.getPropertyValue(otherSide.getName());
+            if (propertyValue == null) {
+                inverseBean.setPropertyValue(otherSide.getName(), target);
             }
         }
+    }
+
+    public static String qualify(final String prefix, final String name) {
+        return StringHelper.qualify(prefix, name);
+    }
+
+    public static boolean isNotEmpty(final String string) {
+        return StringHelper.isNotEmpty(string);
+    }
+
+    public static String unqualify(final String qualifiedName) {
+        return StringHelper.unqualify(qualifiedName);
     }
 }

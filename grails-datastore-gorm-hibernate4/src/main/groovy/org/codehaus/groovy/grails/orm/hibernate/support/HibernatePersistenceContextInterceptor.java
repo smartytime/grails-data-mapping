@@ -17,10 +17,6 @@ package org.codehaus.groovy.grails.orm.hibernate.support;
 
 import grails.validation.DeferredBindingActions;
 
-import java.sql.Connection;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.codehaus.groovy.grails.lifecycle.ShutdownOperations;
 import org.codehaus.groovy.grails.orm.hibernate.cfg.GrailsHibernateUtil;
 import org.codehaus.groovy.grails.orm.hibernate.metaclass.AbstractSavePersistentMethod;
@@ -28,7 +24,8 @@ import org.codehaus.groovy.grails.support.PersistenceContextInterceptor;
 import org.hibernate.FlushMode;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
-import org.hibernate.engine.spi.SessionImplementor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.orm.hibernate4.SessionFactoryUtils;
 import org.springframework.orm.hibernate4.SessionHolder;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -39,7 +36,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  */
 public class HibernatePersistenceContextInterceptor implements PersistenceContextInterceptor {
 
-    private static final Log LOG = LogFactory.getLog(HibernatePersistenceContextInterceptor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(HibernatePersistenceContextInterceptor.class);
     private SessionFactory sessionFactory;
 
     private ThreadLocal<Boolean> participate = new ThreadLocal<Boolean>();
@@ -89,9 +86,7 @@ public class HibernatePersistenceContextInterceptor implements PersistenceContex
     }
 
     public void reconnect() {
-        Session session = getSession();
-        Connection connection = ((SessionImplementor)session).getTransactionCoordinator().getJdbcCoordinator().getLogicalConnection().getDistinctConnectionProxy();
-        session.reconnect(connection);
+        getSession();
     }
 
     public void flush() {

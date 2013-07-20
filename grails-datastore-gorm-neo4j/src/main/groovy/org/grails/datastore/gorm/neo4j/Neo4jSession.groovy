@@ -183,7 +183,11 @@ class Neo4jSession extends AbstractAttributeStoringSession implements PropertyCh
         o.id
     }
 
-    /**
+    @Override
+    Serializable insert(Object o) {
+        return persist(o)
+    }
+/**
      * return a subSubReference node for the current operation.
      * Current strategy is to use current thread's is module 128
      * @param subSubReferenceMap
@@ -314,7 +318,9 @@ class Neo4jSession extends AbstractAttributeStoringSession implements PropertyCh
             if (hasChanged && (!inserts.contains(obj))) {
                 def version = thisNode.getProperty(VERSION_PROPERTY) + 1
                 thisNode.setProperty(VERSION_PROPERTY, version)
-                entityAccess.setProperty(VERSION_PROPERTY, version)
+                if(obj && obj.hasProperty(VERSION_PROPERTY)) {
+                    entityAccess.setProperty(VERSION_PROPERTY, version)
+                }
             }
 
             //def entityAccess = new EntityAccess(pe, obj)
@@ -692,6 +698,15 @@ class Neo4jSession extends AbstractAttributeStoringSession implements PropertyCh
     @Override
     boolean isDirty(Object instance) {
         throw new UnsupportedOperationException()
+    }
+
+    @Override
+    Serializable getObjectIdentifier(Object instance) {
+        final entity = instance ? mappingContext.getPersistentEntity(instance.getClass().name) : null
+        if(entity) {
+            return (Serializable) new EntityAccess(entity, instance).getIdentifier();
+        }
+        return null
     }
 
     private def addObjectToReverseSide(EntityAccess reverseEntityAccess, Association association, objectToSet) {

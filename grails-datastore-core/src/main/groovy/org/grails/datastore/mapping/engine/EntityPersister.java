@@ -103,6 +103,33 @@ public abstract class EntityPersister implements Persister {
         return (Serializable) new EntityAccess(getPersistentEntity(), obj).getIdentifier();
     }
 
+    @Override
+    public Serializable insert(Object obj) {
+        if (!persistentEntity.isInstance(obj)) {
+            final Persister persister = getSession().getPersister(obj);
+            if (persister == null) {
+                throw new IllegalArgumentException("Object [" + obj +
+                        "] is not an instance supported by the persister for class [" +
+                        getType().getName() + "]");
+            }
+
+            return persister.persist(obj);
+        }
+
+        return persistEntity(getPersistentEntity(), obj, true);
+    }
+
+    /**
+     * Subclasses should override to support explicit inserts
+     * @param entity The entity
+     * @param obj The object
+     * @param isInsert Whether it is an insert
+     * @return The id
+     */
+    protected Serializable persistEntity(PersistentEntity entity, Object obj, boolean isInsert) {
+        return persistEntity(entity, obj);
+    }
+
     /**
      * Obtains an objects identifer
      * @param obj The object
@@ -250,6 +277,18 @@ public abstract class EntityPersister implements Persister {
      * @return true if the operation should be cancelled
      */
     public boolean cancelDelete( final PersistentEntity persistentEntity, final EntityAccess entityAccess) {
+        PreDeleteEvent event = new PreDeleteEvent(session.getDatastore(), persistentEntity, entityAccess);
+        publisher.publishEvent(event);
+        return event.isCancelled();
+    }
+
+    /**
+     * Fire the beforeDelete event on an entityAccess object and return true if the operation should be cancelled
+     * @param persistentEntity The entity
+     * @param entityAccess The entity access
+     * @return true if the operation should be cancelled
+     */
+    public boolean cancelLoad( final PersistentEntity persistentEntity, final EntityAccess entityAccess) {
         PreDeleteEvent event = new PreDeleteEvent(session.getDatastore(), persistentEntity, entityAccess);
         publisher.publishEvent(event);
         return event.isCancelled();

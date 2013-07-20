@@ -96,6 +96,11 @@ public class JpaSession extends AbstractAttributeStoringSession {
         return (Serializable)new EntityAccess(persistentEntity, o).getIdentifier();
     }
 
+    @Override
+    public Serializable insert(Object o) {
+        return persist(o);
+    }
+
     public Object merge(Object o) {
         if (o == null) {
             throw new InvalidDataAccessApiUsageException("Object to merge cannot be null");
@@ -328,5 +333,15 @@ public class JpaSession extends AbstractAttributeStoringSession {
     public boolean isDirty(Object instance) {
         // TODO
         return false;
+    }
+
+    @Override
+    public Serializable getObjectIdentifier(Object instance) {
+        if(instance == null) return null;
+        PersistentEntity entity = getPersistentEntity(instance.getClass());
+        if(entity != null) {
+            return (Serializable) new EntityAccess(entity, instance).getIdentifier();
+        }
+        return null;
     }
 }

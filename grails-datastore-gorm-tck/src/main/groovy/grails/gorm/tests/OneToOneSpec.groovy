@@ -1,6 +1,7 @@
 package grails.gorm.tests
 
 import grails.persistence.Entity
+import org.grails.datastore.mapping.proxy.EntityProxy
 
 class OneToOneSpec extends GormDatastoreSpec {
 
@@ -18,7 +19,7 @@ class OneToOneSpec extends GormDatastoreSpec {
         then:"The domain model is valid"
             pet != null
             pet.name == "Dino"
-            pet.owner != null
+            pet.ownerId == person.id
             pet.owner.firstName == "Fred"
     }
 
@@ -36,6 +37,7 @@ class OneToOneSpec extends GormDatastoreSpec {
         then:"The domain model is valid"
 
             face != null
+            face.noseId == nose.id
             face.nose != null
             face.nose.hasFreckles == true
 

@@ -28,4 +28,8 @@ public class DatastoreException extends RuntimeException {
     public DatastoreException(String s) {
         super(s);
     }
+
+    public DatastoreException(String s, Throwable throwable) {
+        super(s, throwable);
+    }
 }
