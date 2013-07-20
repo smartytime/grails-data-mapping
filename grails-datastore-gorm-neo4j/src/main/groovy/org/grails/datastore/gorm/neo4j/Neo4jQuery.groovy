@@ -195,7 +195,7 @@ class Neo4jQuery extends Query {
                 Node node = row.instance
                 Assert.isTrue node.getProperty(Neo4jSession.TYPE_PROPERTY_NAME, null) in validClassNames
                 if (invokeMethod("matchesCriterion${criteria.getClass().simpleName}", [node, criteria])) {
-                    result << session.retrieve(entity.javaClass, node.id)
+                        result << session.retrieve(entity.javaClass, node.id)
                 }
             }
             if (projections.projectionList) { // TODO: optimize: add paginate and order to cypher statement
@@ -377,7 +377,16 @@ class Neo4jQuery extends Query {
     boolean matchesCriterionLessThanProperty(Node node, LessThanProperty criterion) {
         getNodeProperty(node, criterion.property) < getNodeProperty(node, criterion.otherProperty)
     }
-    
+
+    boolean matchesCriterionIsNull(Node node, IsNull criterion) {
+        getNodeProperty(node, criterion.property) == null
+    }
+
+    boolean matchesCriterionIsNotNull(Node node, IsNotNull criterion) {
+        getNodeProperty(node, criterion.property) != null
+    }
+
+
     boolean matchesCriterionSizeLessThanEquals(Node node, SizeLessThanEquals criterion) {
         countRelationshipsForProperty(node, criterion.property) <= criterion.value
     }
