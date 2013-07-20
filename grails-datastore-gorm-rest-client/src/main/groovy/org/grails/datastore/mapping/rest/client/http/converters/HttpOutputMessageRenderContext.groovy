@@ -110,4 +110,9 @@ class HttpOutputMessageRenderContext implements RenderContext{
         contentType ? (contentType.charSet ? contentType.charSet : Charset.forName("UTF-8")) : Charset.forName("UTF-8")
     }
 
+    @Override
+    List<String> getIncludes() { null }
+
+    @Override
+    List<String> getExcludes() { null }
 }
