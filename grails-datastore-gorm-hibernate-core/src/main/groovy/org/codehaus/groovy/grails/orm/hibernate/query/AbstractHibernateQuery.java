@@ -34,6 +34,8 @@ import org.grails.datastore.mapping.query.AssociationQuery;
 import org.grails.datastore.mapping.query.Query;
 import org.grails.datastore.mapping.query.api.QueryableCriteria;
 import org.grails.datastore.mapping.query.criteria.FunctionCallingCriterion;
+import org.grails.datastore.mapping.query.event.PostQueryEvent;
+import org.grails.datastore.mapping.query.event.PreQueryEvent;
 import org.hibernate.Criteria;
 import org.hibernate.FetchMode;
 import org.hibernate.SessionFactory;
@@ -46,6 +48,7 @@ import org.hibernate.dialect.function.SQLFunction;
 import org.hibernate.persister.entity.PropertyMapping;
 import org.hibernate.type.BasicType;
 import org.hibernate.type.TypeResolver;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
@@ -477,7 +480,21 @@ public abstract class AbstractHibernateQuery extends Query {
         }
 
         applyFetchStrategies();
-        return criteria.list();
+
+        ApplicationEventPublisher publisher = session.getDatastore().getApplicationEventPublisher();
+        if(publisher != null) {
+            publisher.publishEvent(new PreQueryEvent(this));
+        }
+
+        List list = criteria.list();
+
+        if(publisher != null) {
+            PostQueryEvent postQueryEvent = new PostQueryEvent(this, list);
+            publisher.publishEvent(postQueryEvent);
+            list = postQueryEvent.getResults();
+        }
+
+        return list;
     }
 
     protected void applyFetchStrategies() {

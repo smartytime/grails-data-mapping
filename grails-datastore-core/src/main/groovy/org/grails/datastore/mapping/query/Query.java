@@ -49,7 +49,7 @@ import org.springframework.util.Assert;
  * @since 1.0
  */
 @SuppressWarnings({"rawtypes", "unchecked"})
-public abstract class Query implements Cloneable{
+public abstract class Query implements Cloneable {
 
     protected PersistentEntity entity;
     protected Junction criteria = new Conjunction();
